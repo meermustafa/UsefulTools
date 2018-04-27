@@ -3,8 +3,13 @@
 ### R script for plotting functions
 
 # pie table
-pie(table( c(rep('>1 Mb',times = 437), rep('≤1 Mb',times = 1358-437) ) ),
-    main = 'Non-overlapping Enhancers \nDistance to Nearest Oncogene', 
+getPrettyPie = function(pieDF, title) {
+    ### takes in DF with V1 = vector of labels, V2 = counts
+    pie(table( c(rep(pieDF[,1],times = pieDF[,2]) ) ),
+    main = title, 
     cex.main =1.5, # change title size
     radius = 2, # change size of pie
-    col = c('black','white')) # change colour of pie
+    col = unique(colors())[1:nrow(pieDF)] # change colour of pie
+       ) 
+
+}
