@@ -1,9 +1,8 @@
 # Meer Mustafa
 # August 7, 2018
 
-# functions that I have developed over the past 2 years of using R
 
-
+# chosen functions that I have developed over the past few years of using R
 
 
 # create a function for generating guide windows -----
@@ -96,17 +95,11 @@ createGuideBasedWindows = function (inputDF,
 
 # loop through all the shufflings
 
-createGuideBasedWindows(inputDF = mycGuides
-                        ,inputDFValueToGroup = mycGuides[, ncol(mycGuides)]
+createGuideBasedWindows(inputDF = inputDF
+                        ,inputDFValueToGroup = inputDF[, ncol(inputDF)]
                         ,metricToGroupBy = median
                         ,considerGenomicSpanFlag = F
 )
-
-# save the metric to the DF
-mycGuides = cbind(mycGuides, 
-                  mean20guideCSWindows = metricCSWindows)
-# head(mycGuides)
-
 
 
 
@@ -114,88 +107,278 @@ mycGuides = cbind(mycGuides,
 
 
 # genomic window grouped ----
-# group guides by genomic windows 
-
-library(GenomicRanges)
-
-# convert MYC tiling library to data table
-library(data.table)
-libDT = as.data.table(mycGuides)
-# head(libDT)
+# group values by genomic windows 
 
 # create a function with 4 parameters
-# output should be chr + genomic intervals, the CS of that interval (possibly gone through a transformation)
-groupGuidesByGenomicWindows = function (chr, windowStartValue, windowEndValue, windowSpan, windowShift, transformationAppliedToWindow ) {
+overlapLibScreenCSWithFeatureSignal_IEoverlap2Ranges = function(rangeDF1, 
+                                                                rangeDF2
+                                                                , flankingbpFor1stRangeDF
+                                                                , typeOfOverlap
+                                                                , functionToApplyToOverlappedEntries
+                                                                , columnNameInLibToMeasure
+                                                                , writeOutFilesFlag=F
+) {
   
+  # load in dependencies
+  library(GenomicRanges)
   library(data.table)
   
   # prevent scientific notation from working
   options(scipen=999)
   
-  # define window intervals
-  start = seq(from = windowStartValue, to = windowEndValue, by = windowShift)
-  end = seq(from = windowStartValue + windowSpan, to = windowEndValue + windowSpan, by = windowShift)
-  
-  # create chr names for overlapping later
-  chrom = rep(paste(chr), times = length(start))
-  
-  # create a window index number using seq_len
-  windowIndex = seq_len(length(start))
-  
-  # assemble the df
-  windowIntervalsDF = data.frame(chr = chrom, start = start, end = end, width = c(end - start), windowIndex = windowIndex )
-  print(head(windowIntervalsDF))
+  # assign range 1 as library and range 2 as feature signal
+  inputDF = rangeDF1
+  windowIntervalsDF = rangeDF2
   
   # convert to data table for overlapping
+  libDT = as.data.table(inputDF)
   windowIntervalsDT = as.data.table(windowIntervalsDF)
   
-  assign(x = 'windowIntervalsDT', windowIntervalsDT, envir = globalenv())
+  # add window index
+  
+  
+  
+  # flank the ranges if desired
+  Prime5flank = (flankingbpFor1stRangeDF / 2) - 1
+  Prime3flank = flankingbpFor1stRangeDF / 2
+  
+  libDT$sgRNA_start = libDT$sgRNA_start - Prime5flank
+  libDT$sgRNA_end = libDT$sgRNA_end + Prime3flank
   
   # after creating windows, overlap with the intervals that have values to be kept
   # use foverlaps with option that desired intervals must be fully contained inside windows
-  
   # 1st set keys to overlap by
   setkey(x = windowIntervalsDT, chr, start, end)
   setkey(x = libDT, chr, sgRNA_start, sgRNA_end)
   
-  # 2nd overlap
-  # compute complete overlaps of guides that fall entirely inside the genomic window -----
-  libOverlappedWithWindows = foverlaps(libDT, windowIntervalsDT, type = 'within',
-                                       nomatch = 0L # when there are no interval overlaps, output a 0 instead of NA
-                                       #, which = T # use which to get the index of x that overlapped with the index of y
+  # compute complete overlaps of guides that fall entirely inside the genomic window
+  libOverlappedWithWindows = foverlaps(
+    windowIntervalsDT, 
+    libDT, 
+    type = 'within',
+    nomatch = 0L # when there are no interval overlaps, output a 0 instead of NA****
+    #, which = T # use which to get the index of x that overlapped with the index of y
   )
   # now this outputs X on the RIGHT, and Y on the LEFT
+  cat("Samples overlapped with windows DF:...\n")
+  print(head(libOverlappedWithWindows))
+  print(tail(libOverlappedWithWindows))
   
+  # save file to env + write out
+  assign(x = paste0(as.list( sys.call() )[2],'_libOverlappedWithWindows_',as.list( sys.call() )[6],'bpGenomicWindows_',as.list( sys.call() )[8],'Transformation'),
+         libOverlappedWithWindows,
+         envir = globalenv())
   
-  assign(x = 'libOverlappedWithWindows', libOverlappedWithWindows, envir = globalenv())
+  if(writeOutFilesFlag) {
+    write.table(libOverlappedWithWindows,
+                paste0(as.list( sys.call() )[2],'.TilingsgRNAs_overlapped_with',as.list( sys.call() )[6],'bpGenomicWindows_',as.list( sys.call() )[8],'Transformation.txt'),
+                col.names = T, row.names = F, quote = F, sep = '\t')
+  }
+  
+  # now consolidate the guides that fall into each the window index by applying some function to all samples inside the window index
+  # apply the function onto the last BC (CS)
+  lastBCname = colnames(libOverlappedWithWindows)[grep(columnNameInLibToMeasure,colnames(libOverlappedWithWindows)) 
+                                                  [length(grep(columnNameInLibToMeasure, colnames( libOverlappedWithWindows)))]]
+  
+  allBCnames = colnames(libOverlappedWithWindows)[grep(columnNameInLibToMeasure,colnames(libOverlappedWithWindows))]
+  
+  formula1 = as.formula(paste0('libOverlappedWithWindows$', lastBCname ,' ~ libOverlappedWithWindows$UniqueID'))
+  
+  consolidatedLibOverlappedWithWindows = aggregate( formula1, 
+                                                    data = libOverlappedWithWindows,
+                                                    FUN = functionToApplyToOverlappedEntries)
+  
+  # add back the window coordinates so that it doesn't just contain the window index
+  consolidatedLibOverlappedWithWindows = merge(consolidatedLibOverlappedWithWindows, 
+                                               libDT, 
+                                               by.x = 'libOverlappedWithWindows$UniqueID', 
+                                               by.y = 'UniqueID', 
+                                               all = F)
+  
+  cat("Consolidated DF:...\n")
+  print(head(consolidatedLibOverlappedWithWindows))
+  print(tail(consolidatedLibOverlappedWithWindows))
+  
+  # save file to env + write out
+  assign(x = paste0(as.list( sys.call() )[2],'_Consolidated_CS_',as.list( sys.call() )[7],'FeatureMeasurement',as.list( sys.call() )[6],'Transformation'), 
+         consolidatedLibOverlappedWithWindows,
+         envir = globalenv())
+  cat("Assigned",paste0(as.list( sys.call() )[2],'_Consolidated_CS_',as.list( sys.call() )[7],'FeatureMeasurement',as.list( sys.call() )[6],'Transformation'),"\n")
+  
+  if(writeOutFilesFlag) {
+    write.table(consolidatedLibOverlappedWithWindows,
+                paste0(as.list( sys.call() )[2],'_Consolidated_CS_',as.list( sys.call() )[6],'bpGenomicWindows_',as.list( sys.call() )[8],'Transformation.txt'),
+                col.names = T, row.names = F, quote = F, sep = '\t')
+  }
+  
   
   
 }
 
-# call function
-groupGuidesByGenomicWindows(chr = mycGuides$chr[1],
-                            windowStartValue = mycGuides$sgRNA_start[1]-180, # start a lil bit upstream so that 1st window contains ≥ 1 guide
-                            windowEndValue = mycGuides$sgRNA_start[nrow(mycGuides)]+180, # end a lil bit downstream so that last window contains ≥ 1 guide
-                            windowSpan = 200, 
-                            windowShift = 10)
-
-# head(libOverlappedWithWindows, 50)
 
 
 
-# save this large genomic window - to - sgRNA overlapped DF
-write.table(libOverlappedWithWindows, paste0(CellLineName,'.',RepName,'.TilingsgRNAs_overlapped_withGenomicWindows.txt'), col.names = T, row.names = F, quote = F, sep = '\t')
+# convert bdg to library size normalized bdg file using the bam file -----
+# meant to be parallel with the ls *bam
+# July 8, 2018
+
+
+#!/usr/bin/env Rscript
+args = commandArgs(trailingOnly=TRUE)
+
+# specify character to match in bdg file names (e.g. H3K27ac or DHS)
+featureNamesToAdd = args[2]
+
+
+# function to convert .perbp BedGraph -> Sushi input (chr, start, end, pileup), normalize pileups
+BedGraphToNormalizedBedGraph_usingBAM = function(featureStringPatternToMatch, positionOfNameInInputBedGraph, positionOfFeatureInInputBedGraph, nameToAddToOutputNormalizedBDG ) {
+  
+  cat('Working on feature',featureStringPatternToMatch,'...\n')
+  
+  # extract all file names in the directory
+  AllFeatureFiles = list.files(path = '.', pattern = featureStringPatternToMatch)
+  
+  NameOfRootCellLine = sapply(strsplit(args[1], split = '.', fixed = T), function(x) x[positionOfNameInInputBedGraph] )
+  cat('Reading in cell line',NameOfRootCellLine,'...\n')
+  
+  # pattern match the matching bam and bdg files using the cell line name
+  BedGraphfile = AllFeatureFiles[grep('.perbp$', AllFeatureFiles)]
+  
+  # subset all bdgs to specific bdg
+  currentBedGraphfilenames = BedGraphfile[grep(NameOfRootCellLine, BedGraphfile)]
+  
+  # if more than one bedgraph belonging to that cell line (e.g. MYCcov.perbp & ZNF479cov.perbp), loop through all
+  for (currentBedGraphfilename in  currentBedGraphfilenames) {
+    
+    cat('Current cell line regex matched file is',currentBedGraphfilename,'. About to read in...\n')
+    
+    # read in bedgraph (chr, position, pileup)
+    currentBedGraph = read.table(currentBedGraphfilename)
+    
+    # index the bam file
+    system(paste("samtools index ",args[1],sep=" "))
+    
+    # normalize using BAM library size, extracted using samtools
+    CurrentBAMLibrarySizeInMillionsOfReads =  ( as.numeric(system(paste("samtools view -F 0x04 -c ",
+                                                                        args[1],
+                                                                        sep=" "),
+                                                                  intern = T))
+                                                / 1000000 ) # divide by 1e6 to get Reads Per Million
+    cat(CurrentBAMLibrarySizeInMillionsOfReads,'M reads...\n')
+    
+    # divide the reads per bp (R/bp) in the bedgraph by the reads per million (RPM) to get the RPM/bp
+    currentBedGraph$V3 = round( (currentBedGraph$V3 / CurrentBAMLibrarySizeInMillionsOfReads), digits = 4 )
+    
+    # write out the normalized bedgraph file
+    write.table(currentBedGraph, file = paste0(currentBedGraphfilename,'.',nameToAddToOutputNormalizedBDG), row.names = F, col.names = F, quote = F)
+    
+  }
+  
+  
+}
+
+# loop through all features to load into envir
+for (currentFeatureName in featureNamesToAdd) {
+  
+  # invoke the previously defined function that converts BedGraph -> Sushi DF
+  BedGraphToNormalizedBedGraph_usingBAM(featureStringPatternToMatch = currentFeatureName,
+                                        positionOfNameInInputBedGraph = 1,
+                                        positionOfFeatureInInputBedGraph = 4,
+                                        nameToAddToOutputNormalizedBDG = 'normalized_RPMbp'
+  )
+  
+}
 
 
 
-# consolidate this overlaps by the window index and apply some function per window index
-lastBCname = colnames(libOverlappedWithWindows)[grep("bc",colnames(libOverlappedWithWindows)) [length(grep("bc", colnames( libOverlappedWithWindows)))]]
 
-formula1 = as.formula(paste0('libOverlappedWithWindows$',lastBCname  ,' ~ libOverlappedWithWindows$windowIndex'))
 
-consolidatedLibOverlappedWithWindows = aggregate( formula1, 
-                                                  data = libOverlappedWithWindows,
-                                                  FUN = mean)
+# convert bedgraph (3 column) file to bigWig
+a = read.table('exampleNormalizedRPMbedgraph.bedgraph')
+
+Bdg2BigWig = function(inputBedGraph, BdgColumnWithSignal# , outputBigWigName
+                      ,writeOutFlag = F) {
+  # begin the new DF with the first row of the input BDG
+  OutputBigWig = inputBedGraph[1, ]
+  
+  for (row in 2:nrow(inputBedGraph)) {
+    
+    # progress report
+    if (row %% 100000 == 0) {
+      percentDone = row/nrow(inputBedGraph)*100
+      cat(percentDone,'% done ... \n')
+    }
+    
+    # # if signal at row = 1 IS NOT different than row = 2 just keep that initial row
+    # if ( inputBedGraph [row, BdgColumnWithSignal] == inputBedGraph [(row-1), BdgColumnWithSignal]) {
+    #   
+    #   # pass this if loop
+    #   #next()
+    #   
+    # }
+    
+    # if signal at row = 1 IS different than row = 2 add that new row to the 
+    if ( inputBedGraph [row, BdgColumnWithSignal] != inputBedGraph [(row-1), BdgColumnWithSignal]) {
+      
+      # add the current row that is diff. than the previous one
+      OutputBigWig = rbind(OutputBigWig, inputBedGraph [row, ])
+      
+    }
+  }
+  
+  # if flag = T, write out file
+  if (writeOutFlag) {
+    write.table(OutputBigWig, 
+                paste0(as.list(sys.call()[2]),'.bigWig'),
+                quote = F, col.names = F, row.names = F, sep = '\t'
+                )
+  }
+  
+  return(OutputBigWig)
+}
+
+b = Bdg2BigWig(a, 3, writeOutFlag = T)
+head(b);nrow(b)
+
+
+
+# bedgraph to bigwig using RLE ----
+#### much faster than Bdg2BigWig*********
+
+Bdg2BigWig_viaRLE = function (inputBDG, columnWithSignal, writeOutFlag = F) {
+  
+  # subset BDG to rows in which the difference between successive signal differences are not 0
+  OutputBigWig = inputBDG[c(1, 1 + which(diff(inputBDG[,columnWithSignal]) != 0) ) , ]
+  
+  assign(x = paste0(deparse(substitute(inputBDG)),'bigWig'),
+         value = OutputBigWig,
+         envir = globalenv())
+  cat('Assigned', paste0(deparse(substitute(inputBDG)),'bigWig'),'\n')
+  
+  if(writeOutFlag == 't') {
+    write.table(OutputBigWig, 
+                paste0(as.list(sys.call()[2]),'.bigWig'),
+                quote = F, col.names = F, row.names = F, sep = '\t'
+    )
+    cat('Wrote out', paste0(as.list(sys.call()[2]),'.bigWig'),'\n')
+  }
+  
+}
+
+
+
+# uppercase only the first letter of the character string ----
+simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  output = as.vector(paste0(toupper(substring(s, 1,1)), substring(s, 2),
+        sep="", collapse=" "))
+  return(output)
+  
+}
+
+name <- c("zip code", "state", "final count")
+
+sapply(name, simpleCap)
 
 
 

@@ -12,16 +12,15 @@ colors()
 
 
 library(RColorBrewer)
-RColorBrewer::display.brewer.all()
+#RColorBrewer::display.brewer.all()
 
 library(wesanderson)
-wesanderson::wes_palettes
+#wesanderson::wes_palettes
 
 #http://eriqande.github.io/rep-res-web/lectures/making-maps-with-R.html
 #install.packages('mapsdata')
-library(mapsdata)
+#library(mapsdata)
 library(maps)
-maps::
 china = map_data()
 
 
@@ -33,17 +32,18 @@ ggdraw
 # draw_plot(): Places a plot somewhere onto the drawing canvas.
 # draw_plot_label(): Adds a plot label to the upper left corner of a graph. It can handle vecgors of labels with associated coordinates.
 
-ggdraw() + 
-  draw_plot(bxp, x = 0, y = 0.5, width = 0.5 , height = 0.5) +
-  draw_plot(dp, x = 0.5, y = 0.5, width = 0.5, height = 0.5) + 
-  draw_plot(lp, x = 0, y = 0, width = 1, height = 0.5) +
-  draw_plot_label(label = c("A","B","C"), x= c(0, 0.5, 0), y = c(1,1,0.5), size = 15)
+# ggdraw() + 
+#   draw_plot(bxp, x = 0, y = 0.5, width = 0.5 , height = 0.5) +
+#   draw_plot(dp, x = 0.5, y = 0.5, width = 0.5, height = 0.5) + 
+#   draw_plot(lp, x = 0, y = 0, width = 1, height = 0.5) +
+#   draw_plot_label(label = c("A","B","C"), x= c(0, 0.5, 0), y = c(1,1,0.5), size = 15)
 
 
 
 
 # ggplot ----
 
+# line plots, labels
 library(ggplot2)
 library(ggrepel)
 
@@ -143,16 +143,18 @@ plot(x = xvalues,
      xlab =  paste0(),
      pch = 19,
      type = 'p',
-     xlim = c(), 
+     xlim = c(127700000,130700000), 
      ylim = c(),
-     cex= 0.7, cex.lab = 1.6, cex.axis = 1.5, cex.main = 1.8, col = alpha(cols[fileIndex],0.4)
+     cex= 0.3, cex.lab = 1.6, cex.axis = 1.5, cex.main = 1.8, col = alpha('darkgoldenrod2',0.4)
 )
 
 # add line between points
-lines(x = df$sgRNA_start[df$sgRNA_start > leftBoundary & df$sgRNA_start < rightBoundary], 
+lines(x = xvalues, 
       y = yvalues, 
       type = 'l', 
-      lwd = 0.3)
+      lwd = 0.3,
+      col = alpha('darkgoldenrod2',0.4)
+      )
 
 # text for a line
 text(x = xmarker, y = 1.1, labels = '', cex = 1.5)
@@ -163,14 +165,41 @@ xx = c(xvalues,
        rev(xvalues)
        )
 yy = c(rep(0, length(yvalues)), rev(yvalues))
-polygon(xx, yy, col = alpha(cols[fileIndex],0.3), border = NA)
+polygon(xx, yy, col = alpha('darkgoldenrod2',0.3), border = NA)
 
 abline(h=1, lty = 2, lwd = 0.5)
 
 
+plotSimpleXY = function(inputDF, xColumn, yColumn, plotType ,plotColour, fill = F) {
+  
+  xvalues = inputDF[,xColumn]
+  yvalues =  inputDF[,yColumn]
+  
+  plot(xvalues, yvalues, type = plotType, col = alpha(plotColour,0.4), cex = 0.6
+       ,pch =19
+  )
+  
+  
+  if (fill) {
+    
+    xx = c(xvalues, 
+           rev(xvalues)
+    )
+    yy = c(rep(0, length(yvalues)), rev(yvalues))
+    polygon(xx, yy, col = alpha(plotColour, 1), border = NA)
+    
+  }
+  
+  
+}
+
+plotSimpleXY(a549_h3k27ac_subset, 2,3,plotType = 'p',plotColour = 'royalblue2', fill = T)
+
 
 
 # pie chart ----
+
+# random color pie chart
 getPrettyPie = function(pieDF, labels, title) {
     ### takes in DF with V1 = vector of labels, V2 = counts
     pie(table( c(rep(pieDF[,1], times = pieDF[,2]) ) ),
@@ -183,6 +212,21 @@ getPrettyPie = function(pieDF, labels, title) {
        ) 
 
 }
+
+# black white pie chart
+getBWpie = function(pieDF, labels, title) {
+  ### takes in DF with V1 = vector of labels, V2 = counts
+  pie(table( c(rep(pieDF[,1], times = pieDF[,2]) ) ),
+      labels = pieDF[,1],
+      main = title, # title
+      cex.main = 2.8, # change title size
+      #cex.axis = 1.2,
+      radius = 1.2, # change size of pie
+      col = c('black','white')  # change colour of pie
+  ) 
+  
+}
+
 
 
 
