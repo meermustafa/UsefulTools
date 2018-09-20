@@ -214,14 +214,15 @@ getPrettyPie = function(pieDF, labels, title) {
 }
 
 # black white pie chart
-getBWpie = function(pieDF, labels, title) {
+getBWpie = function(pieDF, labels, title, sizeOfPie) {
+  
   ### takes in DF with V1 = vector of labels, V2 = counts
   pie(table( c(rep(pieDF[,1], times = pieDF[,2]) ) ),
       labels = pieDF[,1],
       main = title, # title
-      cex.main = 2.8, # change title size
-      #cex.axis = 1.2,
-      radius = 1.2, # change size of pie
+      cex.main = 2.5, # change title size
+      cex = 1.5,
+      radius = sizeOfPie, # change size of pie
       col = c('black','white')  # change colour of pie
   ) 
   
