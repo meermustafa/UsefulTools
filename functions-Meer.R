@@ -106,10 +106,10 @@ createGuideBasedWindows = function (inputDF,
 
 
 
-# genomic window grouped ----
+
 # group values by genomic windows 
 
-# create a function with 4 parameters
+# create a function that overlaps screen ranges with signal ranges
 overlapLibScreenCSWithFeatureSignal_IEoverlap2Ranges = function(rangeDF1, 
                                                                 rangeDF2
                                                                 , flankingbpFor1stRangeDF
