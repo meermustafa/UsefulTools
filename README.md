@@ -1,2 +1,2 @@
-# UsefulTools
-collection of functions I use frequently
+# Useful Tools
+A collection of R functions & scripts I have created & use frequently.
